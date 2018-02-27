@@ -10,7 +10,7 @@ The main concept of new method is to create a backup of an object (a table) whic
 Num | Extention | Description
 ---|---|---
 1 | `<TableName>.sql` | `t-sql` file which will contain object definition based on `CREATE TABLE...` statement including identity, PK info, indexes, triggers, default constraits, etc.
-2 | `<TableName>.txt` | All the table's data will be extracted into `'txt` flat file. This process is based on [bcp utility](https://docs.microsoft.com/en-us/sql/tools/bcp-utility).
+2 | `<TableName>.txt` | All the table's data will be extracted into `.txt` flat file. This process is based on [bcp utility](https://docs.microsoft.com/en-us/sql/tools/bcp-utility).
 3 | `<TableName>.xml` | Additional `.xml` [format file](https://docs.microsoft.com/en-us/sql/relational-databases/import-export/xml-format-files-sql-server) will be created which can be used for further necessary [BULK INSERT](https://docs.microsoft.com/en-us/sql/relational-databases/import-export/use-a-format-file-to-bulk-import-data-sql-server) process in case the data needs to be loaded into a the same table or a any table with the same layout.
 
 The output `.zip` will be compressed and pasword-protected. Once the process is done, an email will be issued to a process owner which will include:
