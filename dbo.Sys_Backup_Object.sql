@@ -1,4 +1,3 @@
-/****** Object:  StoredProcedure [dbo].[Sys_Backup_Object]    Script Date: 2/26/2018 7:57:04 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -45,20 +44,22 @@ BEGIN
 			WHERE session_id = @@spid
 
 			DECLARE @tbl_RecipientName TABLE ([output] VARCHAR(256))
-			SET @cmd = 'powershell.exe Get-ADUser "' + CAST(@nt_user_name as VARCHAR(256)) + '"  -Properties mail'
+			SET @cmd = 'powershell.exe "Get-ADUser "' + CAST(@nt_user_name as VARCHAR(256)) + '" | Select-Object -ExpandProperty GivenName"'
 			--print @cmd
 			INSERT INTO @tbl_RecipientName
 			EXEC master..xp_cmdshell @cmd
+			SELECT TOP 1 @RecipientName = [output]
+			FROM @tbl_RecipientName
+			WHERE [output] is not NULL
 	
-			SELECT @RecipientName = [output]
-			FROM @tbl_RecipientName
-			WHERE [output] like 'GivenName%'
-
-			SELECT @RecipientEmail = [output]
-			FROM @tbl_RecipientName
-			WHERE [output] like 'mail%'
-
-			SET @RecipientEmail = SUBSTRING(@RecipientEmail,charindex(':',@RecipientEmail)+2,LEN(@RecipientEmail))
+			DECLARE @tbl_RecipientMail TABLE ([output] VARCHAR(256))
+			SET @cmd = 'powershell.exe "Get-ADUser "' + CAST(@nt_user_name as VARCHAR(256)) + '"  -Properties mail | Select-Object -ExpandProperty mail"'
+			--print @cmd
+			INSERT INTO @tbl_RecipientMail
+			EXEC master..xp_cmdshell @cmd
+			SELECT TOP 1 @RecipientEmail = [output]
+			FROM @tbl_RecipientMail
+			WHERE [output] is not NULL
 
 			DECLARE @tmp_passw TABLE ([output] VARCHAR(16))
 			INSERT INTO @tmp_passw
@@ -67,7 +68,7 @@ BEGIN
 			FROM @tmp_passw
 			WHERE [output] is not NULL
 
-			SET @EmailBody = '<p><span style="color: #b20838;font-family: Consolas; font-size: 12px;">Hi ' + ISNULL(SUBSTRING(@RecipientName,charindex(':',@RecipientName)+2,LEN(@RecipientName)),'User') + ',</p>'
+			SET @EmailBody = '<p><span style="color: #b20838;font-family: Consolas; font-size: 12px;">Hi ' + ISNULL(@RecipientName,'User') + ',</p>'
 			SET @EmailBody = @EmailBody + 'The object <b>' + @FullObjectName + '</b> has been backed up successfully and it will be stored by the following location:<br/>'
 			SET @EmailBody = @EmailBody + @FilePath + @TableName + '_' + @Now + '.zip' + '<br/>'
 			SET @EmailBody = @EmailBody + 'Passw: ' + @Passw
@@ -102,12 +103,20 @@ BEGIN
 			EXEC master..xp_cmdshell @cmd, no_output
 
 			--send out email notification
-			EXEC msdb.dbo.sp_send_dbmail
-				@profile_Name = 'Amg SQL Admin',
-				@recipients = @RecipientEmail,
-				@body_format='HTML',
-				@body = @EmailBody,
-				@subject = @EmailSubject
+			IF @RecipientEmail is not NULL
+			BEGIN
+				EXEC msdb.dbo.sp_send_dbmail
+					@profile_Name = 'Amg SQL Admin',
+					@recipients = @RecipientEmail,
+					@body_format='HTML',
+					@body = @EmailBody,
+					@subject = @EmailSubject
+
+			END
+			ELSE
+			BEGIN
+				PRINT 'Recepient e-mail is unknown. Please contact administrator.'
+			END
 
 		END
 		ELSE
