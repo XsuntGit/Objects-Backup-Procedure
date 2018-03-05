@@ -7,7 +7,7 @@ ALTER PROCEDURE [dbo].[Sys_Backup_Object]
 	@DatabaseName SYSNAME,
 	@SchemaName SYSNAME,
 	@TableName SYSNAME,
-	@FilePath NVARCHAR(256)
+	@FilePath NVARCHAR(256) = '\\172.28.99.15\amg-obj-bck\'
 )
 AS
 BEGIN
