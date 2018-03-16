@@ -1,3 +1,5 @@
+USE [master]
+GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -21,10 +23,9 @@ BEGIN
 		IF OBJECT_ID(@FullObjectName, N'U') IS NOT NULL
 		BEGIN
 
-			DECLARE @cmd nvarchar(4000),
+			DECLARE @cmd NVARCHAR(4000),
 				@Server SYSNAME,
 				@FilePathTemp NVARCHAR(256),
-				@GUID UNIQUEIDENTIFIER,
 				@EmailBody NVARCHAR(MAX),
 				@EmailSubject NVARCHAR(100),
 				@Now VARCHAR(50),
@@ -35,9 +36,8 @@ BEGIN
 
 			SET @Now = REPLACE(CONVERT(VARCHAR(10), GETDATE(), 112), '/', '') + REPLACE(CONVERT(VARCHAR(10), GETDATE(), 108) , ':', '')
 			SET @Server = @@SERVERNAME
-			SET @GUID = NEWID()
-			SET @FilePathTemp = @FilePath + cast(lower(@GUID) as NVARCHAR(256))
-			SET @EmailSubject = @FullObjectName + ' object backup from ' + cast(GETDATE() as varchar(20))
+			SET @FilePathTemp = @FilePath + CAST(lower(NEWID()) as NVARCHAR(256))
+			SET @EmailSubject = @FullObjectName + ' object backup from ' + CAST(GETDATE() as VARCHAR(20))
 
 			SELECT @nt_user_name = nt_user_name
 			FROM sys.dm_exec_sessions 
