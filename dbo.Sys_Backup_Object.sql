@@ -8,8 +8,7 @@ ALTER PROCEDURE [dbo].[Sys_Backup_Object]
 (
 	@DatabaseName SYSNAME,
 	@SchemaName SYSNAME,
-	@TableName SYSNAME,
-	@FilePath NVARCHAR(256) = '\\172.28.99.15\amg-obj-bck\'
+	@TableName SYSNAME
 )
 AS
 BEGIN
@@ -32,7 +31,8 @@ BEGIN
 				@Passw VARCHAR(15),
 				@nt_user_name NVARCHAR(256),
 				@RecipientName VARCHAR(256),
-				@RecipientEmail VARCHAR(256)
+				@RecipientEmail VARCHAR(256),
+				@FilePath NVARCHAR(256) = '\\172.28.99.15\amg-obj-bck\'
 
 			SET @Now = REPLACE(CONVERT(VARCHAR(10), GETDATE(), 112), '/', '') + REPLACE(CONVERT(VARCHAR(10), GETDATE(), 108) , ':', '')
 			SET @Server = @@SERVERNAME
