@@ -26,9 +26,8 @@ Num | Parameter | Type | Description
 1 | `@DatabaseName` | `SYSNAME` | The database name where the object is located. Usually it's a name of a user's database. For instance, `Enbrel_Production`, `Enbrel_Staging`, etc.
 2 | `@SchemaName` | `SYSNAME` | The schema name which owns a certain object. Usually it's `dbo`, but it can be a different schema name.
 3 | `@TableName` | `SYSNAME` | The object (Table) name. An exact name needs to be specified, otherwise an object won't be found.
-4* | `@FilePath` | `NVARCHAR(256)` | Destination path where a `.zip` file will be created and stored. Recommended to use **`\\172.28.99.15\amg-obj-bck\`** `Please, note that the backslash (\) at the end of the path is very important. Otherwise the entire path to the final filename will be created incorrectly.`
 
-> *Please note, that `@FilePath` parameter is not mandatory and default value for storage path is set to **`\\172.28.99.15\amg-obj-bck\`**.
+> *Please note, that the default value for storage path is set to **`\\172.28.99.15\amg-obj-bck\`**. All the files will be created by this location for further usage.
 
 Additional scripts have been used in the stored procedures which can be referenced by the following link: <https://github.com/XsuntGit/Objects-Backup-Procedure/tree/master/Scripts>
 
@@ -36,7 +35,7 @@ Additional scripts have been used in the stored procedures which can be referenc
 
 1. Extract `dbo.Ashfield_To_XSUNT` table from `Enbrel_Staging` database into `\\172.28.99.15\amg-obj-bck\` shared folder:
 ```sql
-EXEC master.dbo.Sys_Backup_Object 'Enbrel_Staging', 'dbo', 'Ashfield_To_XSUNT', '\\172.28.99.15\amg-obj-bck\'
+EXEC master.dbo.Sys_Backup_Object 'Enbrel_Staging', 'dbo', 'Ashfield_To_XSUNT'
 ```
 2. Extract `dbo.inCRMClaims` table from `EnbrelReporting_Production` database. By default everything will be extracted into `\\172.28.99.15\amg-obj-bck\` shared folder:
 
