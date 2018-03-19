@@ -29,7 +29,10 @@ BEGIN
 				@InputTableName NVARCHAR(256), 
 				@OutputIdentColumn NVARCHAR(256),
 				@ParamDefinition NVARCHAR(500),
-				@IdentColumn NVARCHAR(256)
+				@IdentColumn NVARCHAR(256),
+				@Query VARCHAR(2000),
+				@ScriptBlock VARCHAR(2000),
+				@GUID NVARCHAR(256)
 
 			DECLARE @tmp_path TABLE ([output] VARCHAR(16))
 			SET @cmd = 'powershell.exe Test-Path "' + @FilePath + '"'
@@ -42,10 +45,16 @@ BEGIN
 			IF @TestPath = 1
 			BEGIN
 
-				SET @StorageLocation = @StorageLocation + CAST(lower(NEWID()) as NVARCHAR(256)) + '\'
+				SET @GUID = CAST(lower(NEWID()) as NVARCHAR(256))
+				SET @StorageLocation = @StorageLocation + @GUID + '\'
 				--Extract files from zip
 				SET @cmd = 'powershell C:\XsuntScripts\Derchive_Files.ps1 ' + @FilePath + ' ' + @StorageLocation + ' ' + @Password
-				--print @cmd
+				EXEC master..xp_cmdshell @cmd, no_output
+
+				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.txt'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt'' -Force'
+				EXEC master..xp_cmdshell @cmd, no_output
+
+				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.xml'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml'' -Force'
 				EXEC master..xp_cmdshell @cmd, no_output
 
 				SET @cmd = N'SELECT @OutputIdentColumn = i.[name]' + CHAR(13) +
@@ -54,6 +63,7 @@ BEGIN
 				'ON s.[schema_id] = t.[schema_id]' + CHAR(13) +
 				'INNER JOIN ' + @DatabaseName + '.sys.identity_columns i' + CHAR(13) +
 				'ON i.[object_id] = t.[object_id]  WHERE t.[name] = @InputTableName'
+				--print @cmd
 
 				SET @ParamDefinition = N'@InputTableName NVARCHAR(256), @OutputIdentColumn NVARCHAR(256) OUTPUT'
 
@@ -64,8 +74,8 @@ BEGIN
 
 					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
 					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''' + @StorageLocation + @TableName + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''' + @StorageLocation + @TableName + '.xml''' + ', KEEPIDENTITY, KEEPNULLS)'
+					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt''' + CHAR(13) +
+					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml''' + ', KEEPIDENTITY, KEEPNULLS)'
 
 					EXECUTE (@cmd)
 
@@ -76,14 +86,17 @@ BEGIN
 
 					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
 					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''' + @StorageLocation + @TableName + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''' + @StorageLocation + @TableName + '.xml''' + ', KEEPNULLS)'
+					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt''' + CHAR(13) +
+					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml''' + ', KEEPNULLS)'
 
 					EXECUTE (@cmd)
 
 				END
 
 				SET @cmd = 'powershell Remove-Item ' + @StorageLocation + ' -Recurse'
+				EXEC master..xp_cmdshell @cmd, no_output
+
+				SET @cmd = 'powershell Remove-Item ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.*'''
 				EXEC master..xp_cmdshell @cmd, no_output
 
 			END
