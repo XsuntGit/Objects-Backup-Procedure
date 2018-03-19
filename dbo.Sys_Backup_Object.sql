@@ -75,7 +75,9 @@ BEGIN
 			SET @EmailBody = @EmailBody + '<p>Here is the list of files included:</p>'
 			SET @EmailBody = @EmailBody + '<b>' + @TableName + '.sql</b>' + '&emsp; - t-sql file with the table definition;' + '<br/>'
 			SET @EmailBody = @EmailBody + '<b>' + @TableName + '.txt</b>' + '&emsp; - data flat file (no header);' + '<br/>'
-			SET @EmailBody = @EmailBody + '<b>' + @TableName + '.xml</b>' + '&emsp; - format file to be used for bcp the data in (or <a href="https://docs.microsoft.com/en-us/sql/relational-databases/import-export/use-a-format-file-to-bulk-import-data-sql-server">BULK INSERT</a> statement).' + '<br/>'
+			SET @EmailBody = @EmailBody + '<b>' + @TableName + '.xml</b>' + '&emsp; - format file to be used for bcp the data in (or <a href="https://docs.microsoft.com/en-us/sql/relational-databases/import-export/use-a-format-file-to-bulk-import-data-sql-server">BULK INSERT</a> statement).' + '<br/><br/>'
+			SET @EmailBody = @EmailBody + 'Below is the statement which can be used to load the table back from the generated flat file and the format file:<br/>'
+			SET @EmailBody = @EmailBody + 'EXEC [master].[dbo].[Sys_Restore_Object] ''' + @DatabaseName + ''', ''' + @SchemaName + ''', ''' + @TableName + ''', ''' + @FilePath + @TableName + '_' + @Now + '.zip''' + ', ''' + @Passw + ''''
 
 			--Output tables DDL
 			SET @cmd = 'powershell C:\XsuntScripts\Script_Out_DDL.ps1 ' + @Server + ' ' + @DatabaseName + ' ' + @SchemaName + ' ' + @TableName + ' ' + @FilePathTemp
