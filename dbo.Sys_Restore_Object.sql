@@ -1,5 +1,6 @@
 USE [master]
 GO
+/****** Object:  StoredProcedure [dbo].[Sys_Restore_Object]    Script Date: 3/27/2018 12:52:26 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -32,7 +33,8 @@ BEGIN
 				@IdentColumn NVARCHAR(256),
 				@Query VARCHAR(2000),
 				@ScriptBlock VARCHAR(2000),
-				@GUID NVARCHAR(256)
+				@GUID NVARCHAR(256),
+				@UserTempPath NVARCHAR(256)
 
 			DECLARE @tmp_path TABLE ([output] VARCHAR(16))
 			SET @cmd = 'powershell.exe Test-Path "' + @FilePath + '"'
@@ -51,10 +53,18 @@ BEGIN
 				SET @cmd = 'powershell C:\XsuntScripts\Derchive_Files.ps1 ' + @FilePath + ' ' + @StorageLocation + ' ' + @Password
 				EXEC master..xp_cmdshell @cmd, no_output
 
-				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.txt'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt'' -Force'
+				DECLARE @tbl_UserTempPath TABLE ([output] VARCHAR(256))
+				SET @cmd = 'powershell.exe "$Env:USERPROFILE".Replace('':'',''$'')'
+				INSERT INTO @tbl_UserTempPath
+				EXEC master..xp_cmdshell @cmd
+				SELECT TOP 1 @UserTempPath = '\' + [output] + '\AppData\Local\Temp\'
+				FROM @tbl_UserTempPath
+				WHERE [output] is not NULL
+
+				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.txt'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt'' -Force'
 				EXEC master..xp_cmdshell @cmd, no_output
 
-				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.xml'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml'' -Force'
+				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.xml'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml'' -Force'
 				EXEC master..xp_cmdshell @cmd, no_output
 
 				SET @cmd = N'SELECT @OutputIdentColumn = i.[name]' + CHAR(13) +
@@ -74,8 +84,8 @@ BEGIN
 
 					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
 					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml''' + ', KEEPIDENTITY, KEEPNULLS)'
+					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt''' + CHAR(13) +
+					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml''' + ', KEEPIDENTITY, KEEPNULLS)'
 
 					EXECUTE (@cmd)
 
@@ -86,8 +96,8 @@ BEGIN
 
 					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
 					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.xml''' + ', KEEPNULLS)'
+					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt''' + CHAR(13) +
+					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml''' + ', KEEPNULLS)'
 
 					EXECUTE (@cmd)
 
@@ -96,7 +106,7 @@ BEGIN
 				SET @cmd = 'powershell Remove-Item ' + @StorageLocation + ' -Recurse'
 				EXEC master..xp_cmdshell @cmd, no_output
 
-				SET @cmd = 'powershell Remove-Item ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + '\C$\Windows\Temp\' + @GUID + '.*'''
+				SET @cmd = 'powershell Remove-Item ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.*'''
 				EXEC master..xp_cmdshell @cmd, no_output
 
 			END
