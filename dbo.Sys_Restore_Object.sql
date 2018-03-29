@@ -1,6 +1,5 @@
 USE [master]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_Restore_Object]    Script Date: 3/27/2018 12:52:26 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -34,7 +33,7 @@ BEGIN
 				@Query VARCHAR(2000),
 				@ScriptBlock VARCHAR(2000),
 				@GUID NVARCHAR(256),
-				@UserTempPath NVARCHAR(256)
+				@UserTempPath NVARCHAR(256) = '\c$\Temp\sql_obj_bak\'
 
 			DECLARE @tmp_path TABLE ([output] VARCHAR(16))
 			SET @cmd = 'powershell.exe Test-Path "' + @FilePath + '"'
@@ -52,14 +51,6 @@ BEGIN
 				--Extract files from zip
 				SET @cmd = 'powershell C:\XsuntScripts\Derchive_Files.ps1 ' + @FilePath + ' ' + @StorageLocation + ' ' + @Password
 				EXEC master..xp_cmdshell @cmd, no_output
-
-				DECLARE @tbl_UserTempPath TABLE ([output] VARCHAR(256))
-				SET @cmd = 'powershell.exe "$Env:USERPROFILE".Replace('':'',''$'')'
-				INSERT INTO @tbl_UserTempPath
-				EXEC master..xp_cmdshell @cmd
-				SELECT TOP 1 @UserTempPath = '\' + [output] + '\AppData\Local\Temp\'
-				FROM @tbl_UserTempPath
-				WHERE [output] is not NULL
 
 				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.txt'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt'' -Force'
 				EXEC master..xp_cmdshell @cmd, no_output
