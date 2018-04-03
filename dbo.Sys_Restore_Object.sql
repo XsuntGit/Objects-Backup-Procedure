@@ -58,6 +58,9 @@ BEGIN
 				SET @cmd = 'powershell Copy-Item -Path ''' + @StorageLocation + @TableName + '.xml'' -Destination ''\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml'' -Force'
 				EXEC master..xp_cmdshell @cmd, no_output
 
+				SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';'
+				EXECUTE (@cmd)
+
 				SET @cmd = N'SELECT @OutputIdentColumn = i.[name]' + CHAR(13) +
 				'FROM ' + @DatabaseName + '.sys.schemas AS s' + CHAR(13) +
 				'INNER JOIN ' + @DatabaseName + '.sys.tables AS t' + CHAR(13) +
@@ -71,26 +74,16 @@ BEGIN
 				EXECUTE sp_executesql @cmd, @ParamDefinition, @InputTableName = @TableName, @OutputIdentColumn = @IdentColumn OUTPUT;  
 				IF @IdentColumn IS NOT NULL
 				BEGIN
-					--bulk insert with identity
 
-					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
-					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml''' + ', KEEPIDENTITY, KEEPNULLS)'
-
-					EXECUTE (@cmd)
+					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T -E'
+					EXEC master..xp_cmdshell @cmd, no_output
 
 				END
 				IF @IdentColumn IS NULL
 				BEGIN
-					--bulk insert with no identity
 
-					SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';' + CHAR(13) +
-					'BULK INSERT '  + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + CHAR(13) +
-					'FROM ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt''' + CHAR(13) +
-					'WITH (FORMATFILE = ''\\' + + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml''' + ', KEEPNULLS)'
-
-					EXECUTE (@cmd)
+					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T'
+					EXEC master..xp_cmdshell @cmd, no_output
 
 				END
 
