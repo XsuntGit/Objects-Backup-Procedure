@@ -19,7 +19,7 @@ The output `.zip` will be compressed and pasword-protected. Once the process is 
 - 15 character randomly generated password;
 > Please note, that the password is generated randomly. The password will be known to only a person who runs the process and an email will be sent to only that person.
 
-The stored procedure has 4 mandatory parameters. All the parameters needs to be specified according to their ordonal position. Below is the description of all the parameters:
+The stored procedure has 3 mandatory parameters. All the parameters needs to be specified according to their ordonal position. Below is the description of all the parameters:
 
 Num | Parameter | Type | Description
 ---|---|---|---
