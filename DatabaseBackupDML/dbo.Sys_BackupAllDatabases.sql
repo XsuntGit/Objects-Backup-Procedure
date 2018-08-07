@@ -9,36 +9,44 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
 (
 	@Directory VARCHAR(8000),
 	@TypeOfBackup VARCHAR(5),
-	@DatabaseList VARCHAR(1000)		= '%',
-	@WithCompression BIT			= 1
+	@DatabaseList VARCHAR(1000) = '%',
+	@WithCompression BIT = 1,
+	@MaxTransferSize INT = 262144
 )
-AS 
+AS
 SET NOCOUNT ON;
 
-DECLARE @DatabaseName SYSNAME;
-DECLARE @ERRORVAL VARCHAR(2048)
-DECLARE @SQL VARCHAR(2048)
-DECLARE @ERRORSUBJECT VARCHAR(2000)
+DECLARE @database_id INT,
+		@DatabaseName SYSNAME,
+		@is_encrypted BIT,
+		@encryption_state INT,
+		@ERRORVAL VARCHAR(2048),
+		@SQL VARCHAR(2048),
+		@ERRORSUBJECT VARCHAR(2000)
 
 SET @ERRORSUBJECT = 'Database Backup Failed ON ' + @@SERVERNAME
 
 DECLARE Backup_Cursor CURSOR LOCAL STATIC FOR
-	SELECT [Name] 
-		FROM SYS.Databases 
-			WHERE	[State] = 0 AND 
-					[name] <> 'tempdb' AND 
-					-- Ability to backup one,multiple, or all databases
-					([name] in (SELECT [name] 
-								FROM dbo.Sys_SplitString (@DatabaseList))
-						OR
-					  CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1 
-					 )AND
-					 -- Exclude databases with Log shipping 
-					 [Name] NOT IN (SELECT primary_database 
-									FROM msdb.dbo.log_shipping_primary_databases);
+	SELECT db.database_id, db.[name], db.is_encrypted, ISNULL(dm.encryption_state,-1) as encryption_state
+	FROM sys.databases db
+	LEFT OUTER JOIN sys.dm_database_encryption_keys dm
+	ON db.database_id = dm.database_id
+	WHERE db.[State] = 0 AND 
+	db.[name] <> 'tempdb' AND 
+	-- Ability to backup one,multiple, or all databases
+	(db.[name] in (
+	SELECT [name] FROM dbo.Sys_SplitString (@DatabaseList)
+	)
+	OR
+	CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1 
+	)
+	AND
+	-- Exclude databases with Log shipping 
+	db.[name] NOT IN (SELECT primary_database 
+	FROM msdb.dbo.log_shipping_primary_databases);
 
 OPEN Backup_Cursor;
-FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
+FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @encryption_state;
 	WHILE @@FETCH_STATUS = 0
 	BEGIN
 		-- Check if database is HADR and is primary
@@ -51,9 +59,12 @@ FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
 				EXEC dbo.Sys_CreateBackup @Directory = @Directory,
 									@DatabaseName = @DatabaseName, 
 									@TypeOfBackup = @TypeOfBackup,
-									@WithCompression = @WithCompression;
+									@WithCompression = @WithCompression,
+									@MaxTransferSize = @MaxTransferSize,
+									@is_encrypted = @is_encrypted,
+									@encryption_state = @encryption_state;
 				
-				IF @TypeOfBackup = 'trn'
+				IF @TypeOfBackup = 'trn' and @database_id > 4
 				BEGIN
 					EXEC dbo.Sys_ShrinkLog @DatabaseName
 				END
@@ -79,7 +90,7 @@ FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
 
 			END CATCH
 		END
-		FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
+		FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @encryption_state;
 	END;
 CLOSE Backup_Cursor;
 DEALLOCATE Backup_Cursor;

@@ -10,7 +10,10 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_CreateBackup]
 	@Directory VARCHAR(4000),
 	@DatabaseName SYSNAME,
 	@TypeOfBackup VARCHAR(5),
-	@WithCompression BIT =1
+	@WithCompression BIT = 1,
+	@MaxTransferSize INT,
+	@is_encrypted BIT,
+	@encryption_state INT
 )
 AS
 SET NOCOUNT ON;
@@ -83,7 +86,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 
 		IF @TypeOfBackup = 'full' 
 		BEGIN;
-			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
 			BEGIN TRY 
 				SET @SQL =  'sqlcmd -E -S ' + @@SERVERNAME +' -d MSDB -Q "' + @SQL  +'" -b'; 
 				INSERT INTO #Output exec @ret = master.dbo.xp_cmdshell @SQL
@@ -100,7 +103,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'diff'
 		BEGIN;
-			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
 			BEGIN TRY 
 				SET @SQL =  'sqlcmd -E -S ' + @@SERVERNAME +' -d MSDB -Q "' + @SQL  +'" -b'; 
 				INSERT INTO #Output exec @ret = master.dbo.xp_cmdshell @SQL
@@ -117,7 +120,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'trn'
 		BEGIN;
-			SET @SQL = 'BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
 			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3) -- recovery_model = 3 is simple recovery model
 			BEGIN;
 				BEGIN TRY;
