@@ -40,7 +40,7 @@ BEGIN
 			SET @EmailSubject = @FullObjectName + ' object backup from ' + CAST(GETDATE() as VARCHAR(20))
 
 			SELECT @nt_user_name = nt_user_name
-			FROM sys.dm_exec_sessions 
+			FROM sys.dm_exec_sessions
 			WHERE session_id = @@spid
 
 			DECLARE @tbl_RecipientName TABLE ([output] VARCHAR(256))
@@ -51,7 +51,7 @@ BEGIN
 			SELECT TOP 1 @RecipientName = [output]
 			FROM @tbl_RecipientName
 			WHERE [output] is not NULL
-	
+
 			DECLARE @tbl_RecipientMail TABLE ([output] VARCHAR(256))
 			SET @cmd = 'powershell.exe "Get-ADUser "' + CAST(@nt_user_name as VARCHAR(256)) + '"  -Properties mail | Select-Object -ExpandProperty mail"'
 			--print @cmd
@@ -135,15 +135,15 @@ BEGIN
 				@errno    int,
 				@proc     sysname,
 				@lineno   int
-           
+
 		SELECT @errmsg = error_message(), @severity = error_severity(),
 				@state  = error_state(), @errno = error_number(),
 				@proc   = error_procedure(), @lineno = error_line()
-       
+
 		IF @errmsg NOT LIKE '***%'
 		BEGIN
-			SELECT @errmsg = '*** ' + coalesce(quotename(@proc), '<dynamic SQL>') + 
-							', Line ' + ltrim(str(@lineno)) + '. Errno ' + 
+			SELECT @errmsg = '*** ' + coalesce(quotename(@proc), '<dynamic SQL>') +
+							', Line ' + ltrim(str(@lineno)) + '. Errno ' +
 							ltrim(str(@errno)) + ': ' + @errmsg
 		END
 		RAISERROR('%s', @severity, @state, @errmsg)
