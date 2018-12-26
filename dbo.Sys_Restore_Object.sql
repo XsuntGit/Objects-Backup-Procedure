@@ -60,7 +60,7 @@ BEGIN
 				EXEC master..xp_cmdshell @cmd, no_output
 
 				SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';'
-				print @cmd
+				--print @cmd
 				EXECUTE (@cmd)
 
 				SET @cmd = N'SELECT @OutputIdentColumn = i.[name]' + CHAR(13) +
