@@ -99,7 +99,7 @@ BEGIN
 				IF @IdentColumn IS NOT NULL
 				BEGIN
 
-					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T -E'
+					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T -E'
 					--print @cmd
 					EXEC master..xp_cmdshell @cmd, no_output
 
@@ -107,7 +107,7 @@ BEGIN
 				IF @IdentColumn IS NULL
 				BEGIN
 
-					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T'
+					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T'
 					--print @cmd
 					EXEC master..xp_cmdshell @cmd, no_output
 
