@@ -26,10 +26,11 @@ BEGIN
 			DECLARE @cmd NVARCHAR(4000),
 				@TestPath BIT,
 				@StorageLocation NVARCHAR(256) = '\\172.28.99.15\amg-obj-bck\',
-				@InputTableName NVARCHAR(256), 
+				@InputTableName NVARCHAR(256),
 				@OutputIdentColumn NVARCHAR(256),
 				@ParamDefinition NVARCHAR(500),
 				@IdentColumn NVARCHAR(256),
+				@OutputExists SMALLINT,
 				@Query VARCHAR(2000),
 				@ScriptBlock VARCHAR(2000),
 				@GUID NVARCHAR(256),
@@ -59,6 +60,7 @@ BEGIN
 				EXEC master..xp_cmdshell @cmd, no_output
 
 				SET @cmd = N'TRUNCATE TABLE ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ';'
+				print @cmd
 				EXECUTE (@cmd)
 
 				SET @cmd = N'SELECT @OutputIdentColumn = i.[name]' + CHAR(13) +
@@ -66,16 +68,39 @@ BEGIN
 				'INNER JOIN ' + @DatabaseName + '.sys.tables AS t' + CHAR(13) +
 				'ON s.[schema_id] = t.[schema_id]' + CHAR(13) +
 				'INNER JOIN ' + @DatabaseName + '.sys.identity_columns i' + CHAR(13) +
-				'ON i.[object_id] = t.[object_id]  WHERE t.[name] = @InputTableName'
+				'ON i.[object_id] = t.[object_id]' + CHAR(13) +
+				'WHERE t.[name] = @InputTableName'
 				--print @cmd
 
 				SET @ParamDefinition = N'@InputTableName NVARCHAR(256), @OutputIdentColumn NVARCHAR(256) OUTPUT'
 
-				EXECUTE sp_executesql @cmd, @ParamDefinition, @InputTableName = @TableName, @OutputIdentColumn = @IdentColumn OUTPUT;  
+				EXECUTE sp_executesql @cmd, @ParamDefinition, @InputTableName = @TableName, @OutputIdentColumn = @IdentColumn OUTPUT;
+
+				SET @cmd = N'SELECT TOP 1 @OutputExists = 1' + CHAR(13) +
+				'FROM ' + @DatabaseName + '.sys.schemas AS s' + CHAR(13) +
+				'INNER JOIN ' + @DatabaseName + '.sys.tables AS t' + CHAR(13) +
+				'ON s.[schema_id] = t.[schema_id]' + CHAR(13) +
+				'INNER JOIN ' + @DatabaseName + '.sys.triggers tr' + CHAR(13) +
+				'ON t.[object_id] = tr.[parent_id]' + CHAR(13) +
+				'WHERE t.[name] IN (@InputTableName)'
+
+				SET @ParamDefinition = N'@InputTableName NVARCHAR(256), @OutputExists SMALLINT OUTPUT'
+
+				EXECUTE sp_executesql @cmd, @ParamDefinition, @InputTableName = @TableName, @OutputExists = @OutputExists OUTPUT;
+
+				IF @OutputExists = 1
+				BEGIN
+
+					SET @cmd = N'USE ' + QUOTENAME(@DatabaseName) + '; DISABLE TRIGGER ALL ON ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName)
+					--print @cmd
+
+				END
+
 				IF @IdentColumn IS NOT NULL
 				BEGIN
 
 					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T -E'
+					--print @cmd
 					EXEC master..xp_cmdshell @cmd, no_output
 
 				END
@@ -83,7 +108,16 @@ BEGIN
 				BEGIN
 
 					SET @cmd = N'bcp ' + QUOTENAME(@DatabaseName) + '.' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName) + ' in "\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.txt" -f"\\' + cast(SERVERPROPERTY('MachineName') as VARCHAR(15)) + @UserTempPath + @GUID + '.xml" -S ' + @@SERVERNAME + ' -T'
+					--print @cmd
 					EXEC master..xp_cmdshell @cmd, no_output
+
+				END
+
+				IF @OutputExists = 1
+				BEGIN
+
+					SET @cmd = N'USE ' + QUOTENAME(@DatabaseName) + '; ENABLE TRIGGER ALL ON ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName)
+					--print @cmd
 
 				END
 
@@ -114,15 +148,15 @@ BEGIN
 				@errno    int,
 				@proc     sysname,
 				@lineno   int
-           
+
 		SELECT @errmsg = error_message(), @severity = error_severity(),
 				@state  = error_state(), @errno = error_number(),
 				@proc   = error_procedure(), @lineno = error_line()
-       
+
 		IF @errmsg NOT LIKE '***%'
 		BEGIN
-			SELECT @errmsg = '*** ' + coalesce(quotename(@proc), '<dynamic SQL>') + 
-							', Line ' + ltrim(str(@lineno)) + '. Errno ' + 
+			SELECT @errmsg = '*** ' + coalesce(quotename(@proc), '<dynamic SQL>') +
+							', Line ' + ltrim(str(@lineno)) + '. Errno ' +
 							ltrim(str(@errno)) + ': ' + @errmsg
 		END
 		RAISERROR('%s', @severity, @state, @errmsg)
