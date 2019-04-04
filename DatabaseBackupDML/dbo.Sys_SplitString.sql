@@ -16,10 +16,10 @@ BEGIN
 
  WHILE CHARINDEX(',', @stringToSplit) > 0
  BEGIN
-  SELECT @pos  = CHARINDEX(',', @stringToSplit)  
+  SELECT @pos  = CHARINDEX(',', @stringToSplit)
   SELECT @name = SUBSTRING(@stringToSplit, 1, @pos-1)
 
-  INSERT INTO @returnList 
+  INSERT INTO @returnList
   SELECT @name
 
   SELECT @stringToSplit = SUBSTRING(@stringToSplit, @pos+1, LEN(@stringToSplit)-@pos)

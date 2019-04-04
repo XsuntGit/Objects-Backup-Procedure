@@ -16,12 +16,12 @@ AS
 SET NOCOUNT ON;
 
 CREATE TABLE #PathCheck ( file_exists BIT, directory_exists BIT, parent_directory_exists BIT );
-	
-INSERT INTO #PathCheck EXEC master.dbo.xp_fileexist @Directory 
-	
+
+INSERT INTO #PathCheck EXEC master.dbo.xp_fileexist @Directory
+
 SELECT	@file_exists=file_exists,
-			@directory_exists = directory_exists, 
+			@directory_exists = directory_exists,
 			@parent_directory_exists = parent_directory_exists
 FROM #PathCheck;
 
-DROP TABLE #PathCheck 
+DROP TABLE #PathCheck

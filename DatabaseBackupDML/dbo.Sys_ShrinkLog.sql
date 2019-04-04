@@ -7,7 +7,7 @@ GO
 
 CREATE OR ALTER PROCEDURE [dbo].[Sys_ShrinkLog]
 (
-	@DatabaseName SYSNAME 
+	@DatabaseName SYSNAME
 )
 AS
 BEGIN
