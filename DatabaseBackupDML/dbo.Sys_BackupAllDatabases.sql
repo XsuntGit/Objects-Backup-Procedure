@@ -94,3 +94,4 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 	END;
 CLOSE Backup_Cursor;
 DEALLOCATE Backup_Cursor;
+GO

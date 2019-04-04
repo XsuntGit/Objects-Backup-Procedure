@@ -1,27 +1,19 @@
 USE [msdb]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_ShrinkLog]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_ShrinkLog]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_PathCheck]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_PathCheck]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CreateBackup]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_CreateBackup]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CheckHADR_Databases]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_CheckHADR_Databases]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CheckHADR]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_CheckHADR]
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_BackupAllDatabases]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP PROCEDURE IF EXISTS [dbo].[Sys_BackupAllDatabases]
 GO
-/****** Object:  UserDefinedFunction [dbo].[Sys_SplitString]    Script Date: 8/6/2018 9:21:25 PM ******/
 DROP FUNCTION IF EXISTS [dbo].[Sys_SplitString]
 GO
-/****** Object:  UserDefinedFunction [dbo].[Sys_SplitString]    Script Date: 8/6/2018 9:21:25 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -54,10 +46,10 @@ BEGIN
 
  RETURN
 END
-' 
+'
 END
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_BackupAllDatabases]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -148,7 +140,7 @@ CLOSE Backup_Cursor;
 DEALLOCATE Backup_Cursor;
 
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CheckHADR]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -202,7 +194,7 @@ BEGIN
 	SET @Result = 0;
 END
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CheckHADR_Databases]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -243,7 +235,7 @@ IF (@Sum/@i) = 1
 ELSE
 	SET @Result = 0
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_CreateBackup]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -332,15 +324,9 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 
 		IF @TypeOfBackup = 'full'
 		BEGIN;
-			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
 			BEGIN TRY
-				SET @SQL =  'sqlcmd -E -S ' + @@SERVERNAME +' -d MSDB -Q "' + @SQL  +'" -b';
-				INSERT INTO #Output exec @ret = master.dbo.xp_cmdshell @SQL
-				IF @ret <> 0
-				BEGIN
-					SET  @ERRORVAL = (SELECT OUTPUT + ' '  FROM #output FOR XML PATH(''))
-				END
-
+				EXECUTE(@SQL)
 			END TRY
 			BEGIN CATCH
 				SELECT 'ERROR: Backing up database ' + @DatabaseName + ' : full';
@@ -349,14 +335,9 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'diff'
 		BEGIN;
-			SET @SQL = 'BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
 			BEGIN TRY
-				SET @SQL =  'sqlcmd -E -S ' + @@SERVERNAME +' -d MSDB -Q "' + @SQL  +'" -b';
-				INSERT INTO #Output exec @ret = master.dbo.xp_cmdshell @SQL
-				IF @ret <> 0
-				BEGIN
-					SET  @ERRORVAL = (SELECT OUTPUT + ' '  FROM #output FOR XML PATH(''))
-				END
+				EXECUTE(@SQL)
 			END TRY
 			BEGIN CATCH
 				SELECT 'ERROR: Backing up database ' + @DatabaseName + ' : differential';
@@ -366,16 +347,11 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'trn'
 		BEGIN;
-			SET @SQL = 'BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
 			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3) -- recovery_model = 3 is simple recovery model
 			BEGIN;
 				BEGIN TRY;
-					SET @SQL =  'sqlcmd -E -S ' + @@SERVERNAME +' -d MSDB -Q "' + @SQL  +'" -b';
-					INSERT INTO #Output exec @ret = master.dbo.xp_cmdshell @SQL
-					IF @ret <> 0
-					BEGIN
-						SET  @ERRORVAL = (SELECT OUTPUT + ' '  FROM #output FOR XML PATH(''))
-					END
+					EXECUTE(@SQL)
 				END TRY
 				BEGIN CATCH;
 				SELECT 'ERROR: Backing up database ' + @DatabaseName + ' : transactional';

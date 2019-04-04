@@ -49,7 +49,7 @@ SET @backupfiledate = REPLACE(REPLACE(REPLACE(REPLACE(CONVERT(VARCHAR,GETDATE(),
 SET @backupfileextention = '.' + @TypeOfBackup
 
 
--- Sanity 2 
+-- Sanity 2
 -- Check if database exsists
 IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 	BEGIN;
@@ -100,7 +100,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
 			BEGIN TRY
 				EXECUTE(@SQL)
-			END TRY 
+			END TRY
 			BEGIN CATCH
 				SELECT 'ERROR: Backing up database ' + @DatabaseName + ' : differential';
 				SET @ERRORVAL = (SELECT REPLACE('ERROR: Backing up database ' + @DatabaseName + ' : differential.' +ISNULL(ERROR_MESSAGE ( ),''),CHAR(10),'<br^>'));
@@ -148,3 +148,4 @@ BEGIN;
 	SET @ERRORVAL = (SELECT REPLACE('ERROR: Database Does not exists.' ,CHAR(10),'<br^>'));
 
 END;
+GO

@@ -35,3 +35,4 @@ IF (@Sum/@i) = 1
 	SET @Result = 1
 ELSE
 	SET @Result = 0
+GO

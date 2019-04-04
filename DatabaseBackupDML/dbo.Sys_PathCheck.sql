@@ -25,3 +25,4 @@ SELECT	@file_exists=file_exists,
 FROM #PathCheck;
 
 DROP TABLE #PathCheck
+GO

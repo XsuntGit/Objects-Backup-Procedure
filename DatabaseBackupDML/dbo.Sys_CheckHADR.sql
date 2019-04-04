@@ -47,3 +47,4 @@ ELSE
 BEGIN
 	SET @Result = 0;
 END
+GO

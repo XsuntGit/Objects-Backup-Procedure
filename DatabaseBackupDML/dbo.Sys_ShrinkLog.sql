@@ -26,3 +26,4 @@ BEGIN
 	EXECUTE(@SQLcmd);
 
 END
+GO
