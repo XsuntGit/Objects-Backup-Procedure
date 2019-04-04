@@ -110,7 +110,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		ELSE IF @TypeOfBackup = 'trn'
 		BEGIN;
 			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
-			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3) -- recovery_model = 3 is simple recovery model
+			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3)
 			BEGIN;
 				BEGIN TRY;
 					EXECUTE(@SQL)

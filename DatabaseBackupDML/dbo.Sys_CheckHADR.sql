@@ -8,7 +8,7 @@ GO
 CREATE OR ALTER PROCEDURE [dbo].[Sys_CheckHADR]
 (
 	@DatabaseName SYSNAME = '',
-	@Result BIT OUTPUT 
+	@Result BIT OUTPUT
 )
 AS
 SET NOCOUNT ON;
@@ -29,12 +29,12 @@ BEGIN
 			FROM sys.dm_hadr_database_replica_states AS drs
 				JOIN sys.databases AS db
 				ON drs.database_id = db.database_id
-				LEFT OUTER JOIN sys.dm_hadr_availability_group_states AS gs 
+				LEFT OUTER JOIN sys.dm_hadr_availability_group_states AS gs
 				ON gs.group_id = drs.group_id
 			WHERE Name = @DatabaseName
 
 			IF @is_primary_replica = 1 or @is_primary_replica is NULL
-			BEGIN 							
+			BEGIN
 				SET @Result = 1;
 			END
 			ELSE

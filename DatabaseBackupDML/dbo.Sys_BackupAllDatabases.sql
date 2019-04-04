@@ -31,18 +31,18 @@ DECLARE Backup_Cursor CURSOR LOCAL STATIC FOR
 	FROM sys.databases db
 	LEFT OUTER JOIN sys.dm_database_encryption_keys dm
 	ON db.database_id = dm.database_id
-	WHERE db.[State] = 0 AND 
-	db.[name] <> 'tempdb' AND 
+	WHERE db.[State] = 0 AND
+	db.[name] <> 'tempdb' AND
 	-- Ability to backup one,multiple, or all databases
 	(db.[name] in (
 	SELECT [name] FROM dbo.Sys_SplitString (@DatabaseList)
 	)
 	OR
-	CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1 
+	CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1
 	)
 	AND
-	-- Exclude databases with Log shipping 
-	db.[name] NOT IN (SELECT primary_database 
+	-- Exclude databases with Log shipping
+	db.[name] NOT IN (SELECT primary_database
 	FROM msdb.dbo.log_shipping_primary_databases);
 
 OPEN Backup_Cursor;
@@ -50,20 +50,20 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 	WHILE @@FETCH_STATUS = 0
 	BEGIN
 		-- Check if database is HADR and is primary
-		DECLARE @Result BIT 
-		EXEC dbo.Sys_CheckHADR @DatabaseName = @DatabaseName , @Result = @Result OUTPUT 
+		DECLARE @Result BIT
+		EXEC dbo.Sys_CheckHADR @DatabaseName = @DatabaseName , @Result = @Result OUTPUT
 		IF @Result = 1
-		BEGIN 
-			BEGIN TRY 
+		BEGIN
+			BEGIN TRY
 				-- do backup
 				EXEC dbo.Sys_CreateBackup @Directory = @Directory,
-									@DatabaseName = @DatabaseName, 
+									@DatabaseName = @DatabaseName,
 									@TypeOfBackup = @TypeOfBackup,
 									@WithCompression = @WithCompression,
 									@MaxTransferSize = @MaxTransferSize,
 									@is_encrypted = @is_encrypted,
 									@encryption_state = @encryption_state;
-				
+
 				IF @TypeOfBackup = 'trn' and @database_id > 4
 				BEGIN
 					EXEC dbo.Sys_ShrinkLog @DatabaseName
@@ -82,7 +82,7 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 					SELECT @ERRORVAL;
 					SET @ERRORVAL = (SELECT REPLACE(@ERRORVAL,CHAR(10),'<br^>'));
 				END
-			END TRY 
+			END TRY
 			BEGIN CATCH
 				SET @ERRORVAL= CONVERT(VARCHAR(2048),ISNULL(ERROR_MESSAGE ( ),''));
 				SELECT @ERRORVAL;
