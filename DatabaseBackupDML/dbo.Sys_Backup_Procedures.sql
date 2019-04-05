@@ -99,7 +99,7 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 		-- Check if database is HADR and is primary
 		DECLARE @Result BIT
 		EXEC dbo.Sys_CheckHADR @DatabaseName = @DatabaseName , @Result = @Result OUTPUT
-		IF @Result = 1 OR @CopyOnly = 1
+		IF @Result = 1 OR (@CopyOnly = 1 AND @Result is NOT NULL)
 		BEGIN
 			BEGIN TRY
 				-- do backup
@@ -167,24 +167,31 @@ BEGIN
 	-- check if HADR is available on server
 	IF CASE WHEN OBJECT_ID(@tablename) IS NOT NULL THEN 1 ELSE 0 END = 1
 	BEGIN
-			-- check if database is primary
-			DECLARE @is_primary_replica SMALLINT
-			SELECT @is_primary_replica = SUM(CAST(drs.is_primary_replica as INT))
-			FROM sys.dm_hadr_database_replica_states AS drs
-				JOIN sys.databases AS db
-				ON drs.database_id = db.database_id
-				LEFT OUTER JOIN sys.dm_hadr_availability_group_states AS gs
-				ON gs.group_id = drs.group_id
-			WHERE Name = @DatabaseName
+		-- check if database is primary
+		DECLARE @is_primary_replica SMALLINT,
+				@synchronization_state SMALLINT
+		SELECT @is_primary_replica = SUM(CAST(drs.is_primary_replica as INT)),
+			@synchronization_state = SUM(CAST(drs.synchronization_state as INT))
+		FROM sys.dm_hadr_database_replica_states AS drs
+			JOIN sys.databases AS db
+			ON drs.database_id = db.database_id
+			LEFT OUTER JOIN sys.dm_hadr_availability_group_states AS gs
+			ON gs.group_id = drs.group_id
+		WHERE Name = @DatabaseName
 
-			IF @is_primary_replica = 1 or @is_primary_replica is NULL
-			BEGIN
-				SET @Result = 1;
-			END
-			ELSE
-			BEGIN
-				SET @Result = 0;
-			END
+		IF @synchronization_state = 1
+		BEGIN
+			SET @Result = NULL;
+		END
+		ELSE
+		IF @is_primary_replica = 1 or @is_primary_replica is NULL
+		BEGIN
+			SET @Result = 1;
+		END
+		ELSE
+		BEGIN
+			SET @Result = 0;
+		END
 	END
 END
 ELSE
