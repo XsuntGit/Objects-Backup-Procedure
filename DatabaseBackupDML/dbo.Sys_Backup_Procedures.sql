@@ -99,7 +99,7 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 		-- Check if database is HADR and is primary
 		DECLARE @Result BIT
 		EXEC dbo.Sys_CheckHADR @DatabaseName = @DatabaseName , @Result = @Result OUTPUT
-		IF @Result = 1
+		IF @Result = 1 OR @CopyOnly = 1
 		BEGIN
 			BEGIN TRY
 				-- do backup
@@ -117,7 +117,7 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 					EXEC dbo.Sys_ShrinkLog @DatabaseName
 				END
 
-				IF EXISTS (	SELECT    database_name,MAX(backup_finish_date)
+				IF EXISTS (	SELECT database_name,MAX(backup_finish_date)
 							FROM msdb.dbo.backupset b
 							JOIN msdb.dbo.backupmediafamily m ON b.media_set_id = m.media_set_id
 							JOIN sys.databases d on d.[name] = b.database_name
