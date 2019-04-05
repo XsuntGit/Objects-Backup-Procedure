@@ -10,9 +10,9 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_ShrinkLog]
 	@DatabaseName SYSNAME
 )
 AS
+SET NOCOUNT ON;
 BEGIN
 
-	SET NOCOUNT ON;
 	DECLARE @SQLcmd NVARCHAR(MAX)
 	DECLARE @Shrinkfile nvarchar(256)
 	DECLARE @ParmDefinition NVARCHAR(500)

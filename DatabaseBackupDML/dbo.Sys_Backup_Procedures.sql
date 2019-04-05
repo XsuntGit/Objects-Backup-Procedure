@@ -18,35 +18,31 @@ SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_SplitString]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
-BEGIN
-execute dbo.sp_executesql @statement = N'
-CREATE FUNCTION [dbo].[Sys_SplitString] ( @stringToSplit VARCHAR(MAX) )
+
+CREATE OR ALTER FUNCTION [dbo].[Sys_SplitString] ( @stringToSplit VARCHAR(MAX) )
 RETURNS
- @returnList TABLE ([Name] [nvarchar] (500))
+@returnList TABLE ([Name] [nvarchar] (500))
 AS
 BEGIN
 
- DECLARE @name NVARCHAR(255)
- DECLARE @pos INT
+	DECLARE @name NVARCHAR(255)
+	DECLARE @pos INT
 
- WHILE CHARINDEX('','', @stringToSplit) > 0
- BEGIN
-  SELECT @pos  = CHARINDEX('','', @stringToSplit)
-  SELECT @name = SUBSTRING(@stringToSplit, 1, @pos-1)
+	WHILE CHARINDEX(',', @stringToSplit) > 0
+	BEGIN
+		SELECT @pos  = CHARINDEX(',', @stringToSplit)
+		SELECT @name = SUBSTRING(@stringToSplit, 1, @pos-1)
 
-  INSERT INTO @returnList
-  SELECT @name
+		INSERT INTO @returnList
+		SELECT @name
 
-  SELECT @stringToSplit = SUBSTRING(@stringToSplit, @pos+1, LEN(@stringToSplit)-@pos)
- END
+		SELECT @stringToSplit = SUBSTRING(@stringToSplit, @pos+1, LEN(@stringToSplit)-@pos)
+	END
 
- INSERT INTO @returnList
- SELECT @stringToSplit
+	INSERT INTO @returnList
+	SELECT @stringToSplit
 
- RETURN
-END
-'
+	RETURN
 END
 GO
 
@@ -54,46 +50,50 @@ SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_BackupAllDatabases]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_BackupAllDatabases] AS'
-END
-GO
 
-ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
+CREATE OR ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
 (
 	@Directory VARCHAR(8000),
 	@TypeOfBackup VARCHAR(5),
-	@DatabaseList VARCHAR(1000)		= '%',
-	@WithCompression BIT			= 1
+	@DatabaseList VARCHAR(1000) = '%',
+	@WithCompression BIT = 1,
+	@MaxTransferSize INT = 262144,
+	@CopyOnly BIT = 0
 )
-AS 
+AS
 SET NOCOUNT ON;
 
-DECLARE @DatabaseName SYSNAME;
-DECLARE @ERRORVAL VARCHAR(2048)
-DECLARE @SQL VARCHAR(2048)
-DECLARE @ERRORSUBJECT VARCHAR(2000)
+DECLARE @database_id INT,
+		@DatabaseName SYSNAME,
+		@is_encrypted BIT,
+		@encryption_state INT,
+		@ERRORVAL VARCHAR(2048),
+		@SQL VARCHAR(2048),
+		@ERRORSUBJECT VARCHAR(2000)
 
 SET @ERRORSUBJECT = 'Database Backup Failed ON ' + @@SERVERNAME
 
 DECLARE Backup_Cursor CURSOR LOCAL STATIC FOR
-	SELECT [Name]
-		FROM SYS.Databases
-			WHERE	[State] = 0 AND
-					[name] <> 'tempdb' AND
-					-- Ability to backup one,multiple, or all databases
-					([name] in (SELECT [name]
-								FROM dbo.Sys_SplitString (@DatabaseList))
-						OR
-					  CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1
-					 )AND
-					 -- Exclude databases with Log shipping
-					 [Name] NOT IN (SELECT primary_database
-									FROM msdb.dbo.log_shipping_primary_databases);
+	SELECT db.database_id, db.[name], db.is_encrypted, ISNULL(dm.encryption_state,-1) as encryption_state
+	FROM sys.databases db
+	LEFT OUTER JOIN sys.dm_database_encryption_keys dm
+	ON db.database_id = dm.database_id
+	WHERE db.[State] = 0 AND
+	db.[name] <> 'tempdb' AND
+	-- Ability to backup one,multiple, or all databases
+	(db.[name] in (
+	SELECT [name] FROM dbo.Sys_SplitString (@DatabaseList)
+	)
+	OR
+	CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1
+	)
+	AND
+	-- Exclude databases with Log shipping
+	db.[name] NOT IN (SELECT primary_database
+	FROM msdb.dbo.log_shipping_primary_databases);
 
 OPEN Backup_Cursor;
-FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
+FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @encryption_state;
 	WHILE @@FETCH_STATUS = 0
 	BEGIN
 		-- Check if database is HADR and is primary
@@ -106,9 +106,13 @@ FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
 				EXEC dbo.Sys_CreateBackup @Directory = @Directory,
 									@DatabaseName = @DatabaseName,
 									@TypeOfBackup = @TypeOfBackup,
-									@WithCompression = @WithCompression;
+									@WithCompression = @WithCompression,
+									@MaxTransferSize = @MaxTransferSize,
+									@is_encrypted = @is_encrypted,
+									@encryption_state = @encryption_state,
+									@CopyOnly = @CopyOnly;
 
-				IF @TypeOfBackup = 'trn'
+				IF @TypeOfBackup = 'trn' and @database_id > 4
 				BEGIN
 					EXEC dbo.Sys_ShrinkLog @DatabaseName
 				END
@@ -134,24 +138,18 @@ FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
 
 			END CATCH
 		END
-		FETCH NEXT FROM Backup_Cursor INTO @DatabaseName;
+		FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @encryption_state;
 	END;
 CLOSE Backup_Cursor;
 DEALLOCATE Backup_Cursor;
-
 GO
 
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_CheckHADR]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_CheckHADR] AS'
-END
-GO
 
-ALTER PROCEDURE [dbo].[Sys_CheckHADR]
+CREATE OR ALTER PROCEDURE [dbo].[Sys_CheckHADR]
 (
 	@DatabaseName SYSNAME = '',
 	@Result BIT OUTPUT
@@ -199,12 +197,8 @@ SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_CheckHADR_Databases]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_CheckHADR_Databases] AS'
-END
-GO
-ALTER PROCEDURE [dbo].[Sys_CheckHADR_Databases]
+
+CREATE OR ALTER PROCEDURE [dbo].[Sys_CheckHADR_Databases]
 (
 	@DatabaseList VARCHAR(2000),
 	@Result BIT OUTPUT
@@ -240,18 +234,17 @@ SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_CreateBackup]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_CreateBackup] AS'
-END
-GO
 
-ALTER PROCEDURE [dbo].[Sys_CreateBackup]
+CREATE OR ALTER PROCEDURE [dbo].[Sys_CreateBackup]
 (
 	@Directory VARCHAR(4000),
 	@DatabaseName SYSNAME,
 	@TypeOfBackup VARCHAR(5),
-	@WithCompression BIT =1
+	@WithCompression BIT = 1,
+	@MaxTransferSize INT,
+	@is_encrypted BIT,
+	@encryption_state INT,
+	@CopyOnly BIT
 )
 AS
 SET NOCOUNT ON;
@@ -293,7 +286,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 	BEGIN;
 		-- Check location of the root directory
 		EXEC dbo.Sys_PathCheck	@Directory= @Directory ,@file_exists=@file_exists OUTPUT, @Directory_exists	= @directory_exists	OUTPUT,	@parent_directory_exists = @parent_directory_exists	OUTPUT;
-		SELECT @file_exists,@directory_exists, @parent_directory_exists;
+		SELECT @file_exists, @directory_exists, @parent_directory_exists;
 
 		-- initial setup check
 		IF @directory_exists = 0
@@ -302,7 +295,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 			EXEC master.dbo.xp_create_subdir @Directory;
 			--check again
 			EXEC dbo.Sys_PathCheck	@Directory= @Directory ,@file_exists=@file_exists OUTPUT, @Directory_exists	= @directory_exists	OUTPUT,	@parent_directory_exists = @parent_directory_exists	OUTPUT;
-			SELECT @file_exists,@directory_exists, @parent_directory_exists;
+			SELECT @file_exists, @directory_exists, @parent_directory_exists;
 		END
 
 
@@ -324,7 +317,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 
 		IF @TypeOfBackup = 'full'
 		BEGIN;
-			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
 			BEGIN TRY
 				EXECUTE(@SQL)
 			END TRY
@@ -335,7 +328,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'diff'
 		BEGIN;
-			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH DIFFERENTIAL, STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END;
 			BEGIN TRY
 				EXECUTE(@SQL)
 			END TRY
@@ -347,7 +340,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'trn'
 		BEGIN;
-			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ',COMPRESSION' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
 			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3) -- recovery_model = 3 is simple recovery model
 			BEGIN;
 				BEGIN TRY;
@@ -387,23 +380,18 @@ BEGIN;
 
 END;
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_PathCheck]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_PathCheck]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_PathCheck] AS'
-END
-GO
-ALTER PROCEDURE [dbo].[Sys_PathCheck]
+CREATE OR ALTER PROCEDURE [dbo].[Sys_PathCheck]
 (
 	@Directory VARCHAR(4000) ,
 	@file_exists INT OUTPUT,
 	@directory_exists INT OUTPUT,
 	@parent_directory_exists INT OUTPUT
-	)
+)
 AS
 SET NOCOUNT ON;
 
@@ -412,30 +400,25 @@ CREATE TABLE #PathCheck ( file_exists BIT, directory_exists BIT, parent_director
 INSERT INTO #PathCheck EXEC master.dbo.xp_fileexist @Directory
 
 SELECT	@file_exists=file_exists,
-			@directory_exists = directory_exists,
-			@parent_directory_exists = parent_directory_exists
+		@directory_exists = directory_exists,
+		@parent_directory_exists = parent_directory_exists
 FROM #PathCheck;
 
 DROP TABLE #PathCheck
 GO
-/****** Object:  StoredProcedure [dbo].[Sys_ShrinkLog]    Script Date: 8/6/2018 9:21:25 PM ******/
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Sys_ShrinkLog]') AND type in (N'P', N'PC'))
-BEGIN
-EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[Sys_ShrinkLog] AS'
-END
-GO
-ALTER PROCEDURE [dbo].[Sys_ShrinkLog]
+CREATE OR ALTER PROCEDURE [dbo].[Sys_ShrinkLog]
 (
 	@DatabaseName SYSNAME
 )
 AS
+SET NOCOUNT ON;
 BEGIN
 
-	SET NOCOUNT ON;
 	DECLARE @SQLcmd NVARCHAR(MAX)
 	DECLARE @Shrinkfile nvarchar(256)
 	DECLARE @ParmDefinition NVARCHAR(500)
@@ -444,7 +427,7 @@ BEGIN
 	SET @ParmDefinition = N'@shrinkfileOUT nvarchar(256) OUTPUT'
 	EXECUTE sp_executesql @SQLcmd, @ParmDefinition, @shrinkfileOUT = @shrinkfile OUTPUT
 
-	SET @SQLcmd = N'USE ' + @DatabaseName + ';DBCC SHRINKFILE (' + @shrinkfile + ' , 2000)'
+	SET @SQLcmd = N'USE ' + @DatabaseName + '; DBCC SHRINKFILE (' + @shrinkfile + ' , 2000)'
 
 	EXECUTE(@SQLcmd);
 

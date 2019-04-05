@@ -11,7 +11,7 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_PathCheck]
 	@file_exists INT OUTPUT,
 	@directory_exists INT OUTPUT,
 	@parent_directory_exists INT OUTPUT
-	)
+)
 AS
 SET NOCOUNT ON;
 

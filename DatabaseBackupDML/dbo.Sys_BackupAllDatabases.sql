@@ -11,7 +11,8 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
 	@TypeOfBackup VARCHAR(5),
 	@DatabaseList VARCHAR(1000) = '%',
 	@WithCompression BIT = 1,
-	@MaxTransferSize INT = 262144
+	@MaxTransferSize INT = 262144,
+	@CopyOnly BIT = 0
 )
 AS
 SET NOCOUNT ON;
@@ -62,7 +63,8 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 									@WithCompression = @WithCompression,
 									@MaxTransferSize = @MaxTransferSize,
 									@is_encrypted = @is_encrypted,
-									@encryption_state = @encryption_state;
+									@encryption_state = @encryption_state,
+									@CopyOnly = @CopyOnly;
 
 				IF @TypeOfBackup = 'trn' and @database_id > 4
 				BEGIN
