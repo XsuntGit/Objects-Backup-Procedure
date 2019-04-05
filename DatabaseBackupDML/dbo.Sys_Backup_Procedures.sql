@@ -99,7 +99,7 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 		-- Check if database is HADR and is primary
 		DECLARE @Result BIT
 		EXEC dbo.Sys_CheckHADR @DatabaseName = @DatabaseName , @Result = @Result OUTPUT
-		IF @Result = 1 OR (@CopyOnly = 1 AND @Result is NOT NULL)
+		IF (@Result = 1 AND @CopyOnly = 0) OR (@Result= 0 AND @CopyOnly = 1)
 		BEGIN
 			BEGIN TRY
 				-- do backup
