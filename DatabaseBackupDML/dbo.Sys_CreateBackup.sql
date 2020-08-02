@@ -87,7 +87,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 
 		IF @TypeOfBackup = 'full'
 		BEGIN;
-			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 and @CopyOnly = 0 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP DATABASE [' + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
 			BEGIN TRY
 				EXECUTE(@SQL)
 			END TRY
@@ -110,7 +110,7 @@ IF EXISTS( SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName )
 		END;
 		ELSE IF @TypeOfBackup = 'trn'
 		BEGIN;
-			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 and @CopyOnly = 0 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
+			SET @SQL = 'USE [master]; BACKUP LOG ['	  + @DatabaseName + '] TO DISK = ''' + @Directory + @DatabaseName + '_backup_' + @backupfiledate + @backupfileextention+ ''' WITH STATS = 1' + CASE WHEN @WithCompression = 1 THEN ', COMPRESSION' ELSE '' END + CASE WHEN @MaxTransferSize > 0 and @is_encrypted = 1 and @encryption_state = 3 THEN ', MAXTRANSFERSIZE = ' + CAST(@MaxTransferSize as VARCHAR(20)) ELSE '' END + CASE WHEN @CopyOnly = 1 THEN ', COPY_ONLY' ELSE '' END;
 			IF NOT EXISTS(SELECT * FROM Sys.Databases WHERE [Name] = @DatabaseName AND recovery_model = 3) -- recovery_model = 3 is simple recovery model
 			BEGIN;
 				BEGIN TRY;
