@@ -14,37 +14,6 @@ DROP PROCEDURE IF EXISTS [dbo].[Sys_BackupAllDatabases]
 GO
 DROP FUNCTION IF EXISTS [dbo].[Sys_SplitString]
 GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE OR ALTER FUNCTION [dbo].[Sys_SplitString] ( @stringToSplit VARCHAR(MAX) )
-RETURNS
-@returnList TABLE ([Name] [nvarchar] (500))
-AS
-BEGIN
-
-	DECLARE @name NVARCHAR(255)
-	DECLARE @pos INT
-
-	WHILE CHARINDEX(',', @stringToSplit) > 0
-	BEGIN
-		SELECT @pos  = CHARINDEX(',', @stringToSplit)
-		SELECT @name = SUBSTRING(@stringToSplit, 1, @pos-1)
-
-		INSERT INTO @returnList
-		SELECT @name
-
-		SELECT @stringToSplit = SUBSTRING(@stringToSplit, @pos+1, LEN(@stringToSplit)-@pos)
-	END
-
-	INSERT INTO @returnList
-	SELECT @stringToSplit
-
-	RETURN
-END
-GO
 
 SET ANSI_NULLS ON
 GO
@@ -55,7 +24,7 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
 (
 	@Directory VARCHAR(8000),
 	@TypeOfBackup VARCHAR(5),
-	@DatabaseList VARCHAR(1000) = '%',
+	@DatabaseList NVARCHAR(max) = '%',
 	@WithCompression BIT = 1,
 	@MaxTransferSize INT = 262144,
 	@CopyOnly BIT = 0
@@ -68,28 +37,97 @@ DECLARE @database_id INT,
 		@is_encrypted BIT,
 		@encryption_state INT,
 		@ERRORVAL VARCHAR(2048),
-		@SQL VARCHAR(2048),
-		@ERRORSUBJECT VARCHAR(2000)
+		@SQL VARCHAR(2048)
 
-SET @ERRORSUBJECT = 'Database Backup Failed ON ' + @@SERVERNAME
+DECLARE @tmpDatabases TABLE (ID int IDENTITY,
+                           database_id int,
+						   DatabaseName nvarchar(max),
+                           DatabaseType nvarchar(max),
+                           Selected bit,
+						   is_encrypted bit,
+						   encryption_state int,
+                           PRIMARY KEY(Selected,ID))
+
+DECLARE @SelectedDatabases TABLE (DatabaseName nvarchar(max),
+                                DatabaseType nvarchar(max),
+                                Selected bit)
+
+SET @DatabaseList = REPLACE(@DatabaseList, CHAR(10), '')
+SET @DatabaseList = REPLACE(@DatabaseList, CHAR(13), '')
+
+WHILE CHARINDEX(', ',@DatabaseList) > 0 SET @DatabaseList = REPLACE(@DatabaseList,', ',',')
+WHILE CHARINDEX(' ,',@DatabaseList) > 0 SET @DatabaseList = REPLACE(@DatabaseList,' ,',',')
+
+SET @DatabaseList = LTRIM(RTRIM(@DatabaseList));
+
+WITH Databases1 (StartPosition, EndPosition, DatabaseItem) AS
+(
+SELECT 1 AS StartPosition,
+     ISNULL(NULLIF(CHARINDEX(',', @DatabaseList, 1), 0), LEN(@DatabaseList) + 1) AS EndPosition,
+     SUBSTRING(@DatabaseList, 1, ISNULL(NULLIF(CHARINDEX(',', @DatabaseList, 1), 0), LEN(@DatabaseList) + 1) - 1) AS DatabaseItem
+WHERE @DatabaseList IS NOT NULL
+UNION ALL
+SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+     ISNULL(NULLIF(CHARINDEX(',', @DatabaseList, EndPosition + 1), 0), LEN(@DatabaseList) + 1) AS EndPosition,
+     SUBSTRING(@DatabaseList, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(',', @DatabaseList, EndPosition + 1), 0), LEN(@DatabaseList) + 1) - EndPosition - 1) AS DatabaseItem
+FROM Databases1
+WHERE EndPosition < LEN(@DatabaseList) + 1
+),
+Databases2 (DatabaseItem, Selected) AS
+(
+SELECT CASE WHEN DatabaseItem LIKE '-%' THEN RIGHT(DatabaseItem,LEN(DatabaseItem) - 1) ELSE DatabaseItem END AS DatabaseItem,
+     CASE WHEN DatabaseItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+FROM Databases1
+),
+Databases3 (DatabaseItem, DatabaseType, Selected) AS
+(
+SELECT CASE WHEN DatabaseItem IN('ALL_DATABASES','SYSTEM_DATABASES','USER_DATABASES') THEN '%' ELSE DatabaseItem END AS DatabaseItem,
+     CASE WHEN DatabaseItem = 'SYSTEM_DATABASES' THEN 'S' WHEN DatabaseItem = 'USER_DATABASES' THEN 'U' ELSE NULL END AS DatabaseType,
+     Selected
+FROM Databases2
+),
+Databases4 (DatabaseName, DatabaseType, Selected) AS
+(
+SELECT CASE WHEN LEFT(DatabaseItem,1) = '[' AND RIGHT(DatabaseItem,1) = ']' THEN PARSENAME(DatabaseItem,1) ELSE DatabaseItem END AS DatabaseItem,
+     DatabaseType,
+     Selected
+FROM Databases3
+)
+INSERT INTO @SelectedDatabases (DatabaseName, DatabaseType, Selected)
+SELECT DatabaseName,
+     DatabaseType,
+     Selected
+FROM Databases4
+OPTION (MAXRECURSION 0)
+
+INSERT INTO @tmpDatabases (database_id, DatabaseName, DatabaseType, Selected, is_encrypted, encryption_state)
+SELECT db.database_id,
+	   [name] AS DatabaseName,
+       CASE WHEN name IN('master','msdb','model') THEN 'S' ELSE 'U' END AS DatabaseType,
+       0 AS Selected,
+	   is_encrypted,
+	   ISNULL(dm.encryption_state,-1) as encryption_state
+FROM sys.databases db
+LEFT OUTER JOIN sys.dm_database_encryption_keys dm
+ON db.database_id = dm.database_id
+WHERE [name] <> 'tempdb'
+AND source_database_id IS NULL
+ORDER BY [name] ASC
+
+UPDATE tmpDatabases
+SET tmpDatabases.Selected = SelectedDatabases.Selected
+FROM @tmpDatabases tmpDatabases
+INNER JOIN @SelectedDatabases SelectedDatabases
+ON tmpDatabases.DatabaseName LIKE REPLACE(SelectedDatabases.DatabaseName,'_','[_]')
+AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+WHERE SelectedDatabases.Selected = 1
 
 DECLARE Backup_Cursor CURSOR LOCAL STATIC FOR
-	SELECT db.database_id, db.[name], db.is_encrypted, ISNULL(dm.encryption_state,-1) as encryption_state
-	FROM sys.databases db
-	LEFT OUTER JOIN sys.dm_database_encryption_keys dm
-	ON db.database_id = dm.database_id
-	WHERE db.[State] = 0 AND
-	db.[name] <> 'tempdb' AND
-	-- Ability to backup one,multiple, or all databases
-	(db.[name] in (
-	SELECT [name] FROM dbo.Sys_SplitString (@DatabaseList)
-	)
-	OR
-	CASE WHEN @DatabaseList = '%' THEN 1 ELSE 0 END = 1
-	)
-	AND
+	SELECT database_id, DatabaseName, is_encrypted, encryption_state
+	FROM @tmpDatabases
+	WHERE Selected = 1
 	-- Exclude databases with Log shipping
-	db.[name] NOT IN (SELECT primary_database
+	AND DatabaseName NOT IN (SELECT primary_database
 	FROM msdb.dbo.log_shipping_primary_databases);
 
 OPEN Backup_Cursor;
@@ -117,19 +155,6 @@ FETCH NEXT FROM Backup_Cursor INTO @database_id, @DatabaseName, @is_encrypted, @
 					EXEC dbo.Sys_ShrinkLog @DatabaseName
 				END
 
-				IF EXISTS (	SELECT database_name,MAX(backup_finish_date)
-							FROM msdb.dbo.backupset b
-							JOIN msdb.dbo.backupmediafamily m ON b.media_set_id = m.media_set_id
-							JOIN sys.databases d on d.[name] = b.database_name
-							WHERE d.[name] = @DatabaseName
-							GROUP BY database_name
-							HAVING MAX(backup_finish_date) < DATEADD(day,-8,GETDATE()))
-				BEGIN
-					SELECT 'No database backup with in 8 days or more';
-					SET @ERRORVAL= 'Database: ' + @DatabaseName + ' was not backed-up within 8 days or more';
-					SELECT @ERRORVAL;
-					SET @ERRORVAL = (SELECT REPLACE(@ERRORVAL,CHAR(10),'<br^>'));
-				END
 			END TRY
 			BEGIN CATCH
 				SET @ERRORVAL= CONVERT(VARCHAR(2048),ISNULL(ERROR_MESSAGE ( ),''));
@@ -205,42 +230,6 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE OR ALTER PROCEDURE [dbo].[Sys_CheckHADR_Databases]
-(
-	@DatabaseList VARCHAR(2000),
-	@Result BIT OUTPUT
-)
-AS
-SET NOCOUNT ON;
-
-DECLARE @HADR BIT,
-		@DBName VARCHAR(256),
-		@i INT = 0,
-		@Sum INT = 0
-DECLARE DBs CURSOR FOR
-SELECT [name] FROM [msdb].[dbo].Sys_SplitString (@DatabaseList)
-OPEN DBs
-FETCH NEXT FROM DBs INTO @DBName
-WHILE @@FETCH_STATUS = 0
-BEGIN
-	EXEC [msdb].[dbo].Sys_CheckHADR @DatabaseName = @DBName , @Result = @HADR OUTPUT
-	SET @Sum += CAST(@HADR as INT)
-	SET @i += 1
-	FETCH NEXT FROM DBs INTO @DBName
-END
-CLOSE DBs
-DEALLOCATE DBs
-
-IF (@Sum/@i) = 1
-	SET @Result = 1
-ELSE
-	SET @Result = 0
-GO
-
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 
 CREATE OR ALTER PROCEDURE [dbo].[Sys_CreateBackup]
 (
