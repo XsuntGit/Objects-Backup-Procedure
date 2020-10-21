@@ -24,7 +24,7 @@ CREATE OR ALTER PROCEDURE [dbo].[Sys_BackupAllDatabases]
 (
 	@Directory VARCHAR(8000),
 	@TypeOfBackup VARCHAR(5),
-	@DatabaseList NVARCHAR(max) = '%',
+	@DatabaseList NVARCHAR(max) = 'ALL_DATABASES',
 	@WithCompression BIT = 1,
 	@MaxTransferSize INT = 262144,
 	@CopyOnly BIT = 0
