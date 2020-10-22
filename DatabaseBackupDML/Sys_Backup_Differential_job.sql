@@ -31,7 +31,7 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'Sys_Back
 		@retry_attempts=0,
 		@retry_interval=0,
 		@os_run_priority=0, @subsystem=N'TSQL',
-		@command=N'exec [XsuntAdmin].[dbo].[Sys_BackupAllDatabases] ''<BackupPath>'', ''diff''',
+		@command=N'exec [XsuntAdmin].[dbo].[Sys_BackupAllDatabases] ''<BackupPath>'', ''diff'', @DatabaseList = ''SYSTEM_DATABASES, XsuntAdmin''',
 		@database_name=N'XsuntAdmin',
 		@flags=0
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
