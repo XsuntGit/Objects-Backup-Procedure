@@ -7,8 +7,8 @@ GO
 
 CREATE OR ALTER PROCEDURE [dbo].[sys_database_backup]
 (
-	@DatabaseName NVARCHAR(256),
-	@Path NVARCHAR(4000)
+	@DatabaseName NVARCHAR(255),
+	@Path NVARCHAR(255)
 )
 WITH ENCRYPTION
 AS
@@ -24,7 +24,7 @@ END
 IF EXISTS (SELECT * FROM sys.databases db WHERE db.[name] = @DatabaseName)
 	BEGIN
 
-		IF EXISTS (SELECT [file_or_directory_name] FROM master.sys.dm_os_enumerate_filesystem(@Path,'*')		)
+		IF (SELECT [file_is_a_directory] FROM master.sys.dm_os_file_exists(@Path)) = 1
 		BEGIN
 
 			DECLARE @SQL NVARCHAR(2000),

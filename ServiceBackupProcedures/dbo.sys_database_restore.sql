@@ -8,7 +8,7 @@ GO
 CREATE OR ALTER PROCEDURE [dbo].[sys_database_restore]
 (
 	@DatabaseName NVARCHAR(256),
-	@FilePath NVARCHAR(4000)
+	@FilePath NVARCHAR(255)
 )
 WITH ENCRYPTION
 AS
@@ -24,10 +24,7 @@ END
 IF NOT EXISTS (SELECT * FROM sys.databases db WHERE db.[name] = @DatabaseName)
 	BEGIN
 
-		IF EXISTS (
-			SELECT [file_or_directory_name] FROM master.sys.dm_os_enumerate_filesystem(left(@FilePath,len(@FilePath)+1 - charindex('\',reverse(@FilePath),0)),'*')
-			WHERE [file_or_directory_name] = substring(@FilePath, len(@FilePath)+1 - charindex('\',reverse(@FilePath),0)+1, len(@FilePath))
-		)
+		IF (SELECT [file_exists] from sys.dm_os_file_exists(@FilePath)) = 1
 		BEGIN
 
 			DECLARE @SQL NVARCHAR(2000),
