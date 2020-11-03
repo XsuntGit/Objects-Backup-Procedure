@@ -7,7 +7,7 @@ GO
 
 CREATE OR ALTER PROCEDURE [dbo].[sys_database_restore]
 (
-	@DatabaseName NVARCHAR(256),
+	@DatabaseName NVARCHAR(255),
 	@FilePath NVARCHAR(255)
 )
 WITH ENCRYPTION
